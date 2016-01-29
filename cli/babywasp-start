@@ -1,0 +1,106 @@
+#!/usr/bin/env node
+var util = require('util');
+var async = require('async');
+var bitcore = require('bitcore-wallet-client');
+var express = require('express');
+
+var common = require('../common');
+
+var walletFile;
+var program = common.program()
+	.option('-p, --port <port>', 'Port on which to listen (default: 7000)', 7000)
+	.arguments('<wallet-file>')
+	.action(function (_walletFile) {
+		walletFile = _walletFile;
+	});
+
+program.parse(process.argv);
+if (!walletFile) program.help();
+
+async.waterfall([
+	async.apply(common.getClient, walletFile, program.host, program.verbose),
+	function (client, next) {
+		var app = express();
+		app.set('x-powered-by', false);
+
+		app.use(function (req, res, next) {
+			console.log('[info] %s\t%s\t%s', new Date(), req.ip, req.originalUrl);
+			next();
+		});
+
+		app.get('/balance', getBalance(client));
+		app.get('/address', getAddress(client));
+		app.post('/send/:address', send(client));
+
+		app.use(function (err, req, res, next) {
+			if (res.headersSent) return next(err);
+			res.status(500).json(err.hasOwnProperty('message') ? err.message : err);
+		});
+
+		app.listen(program.port, function () {
+			console.info('[info] Listening on port %s', program.port);
+		});
+	}
+], function (err) {
+	if (err) console.error(err);
+});
+
+
+function getBalance(client) {
+	return function (req, res, next) {
+		client.getBalance({}, function (err, balance) {
+			if (err) return next(err);
+			res.json(balance.availableAmount);
+		});
+	}
+}
+
+function getAddress(client) {
+	return function (req, res, next) {
+		client.createAddress({}, function (err, address) {
+			if (err) return next(err);
+			res.json(address.address);
+		});
+	}
+}
+
+function send(client) {
+	return function (req, res, next) {
+		var apiKey = req.get('x-api-key');
+		var opts = {
+			toAddress: req.params.address,
+			amount: parseInt(req.query.amount),
+			message: req.query.description
+		};
+		if (isNaN(opts.amount)) return next('Invalid parameter: amount');
+
+		async.waterfall([
+			async.constant(apiKey),
+			unlock(client),
+			function (next) {
+				client.sendTxProposal(opts, next);
+			},
+			function (txp, next) {
+				client.signTxProposal(txp, next);
+			},
+			function (txp, next) {
+				client.broadcastTxProposal(txp, next);
+			},
+			function (tx, next) {
+				res.json(tx.txid);
+			}
+		], function (err) {
+			client.lock();
+			if (err) return next(err);
+		});
+	}
+}
+
+function unlock(client) {
+	return function (apiKey, next) {
+		common.unlockWallet(client, apiKey, function (err) {
+			if (err) return next(err);
+			return next(null);
+		});
+	}
+}

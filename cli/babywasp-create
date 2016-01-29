@@ -1,0 +1,74 @@
+#!/usr/bin/env node
+var fs = require('fs');
+var async = require('async');
+var bip39 = require('bip39');
+var prompt = require('prompt');
+
+var common = require('../common.js');
+
+var schema = {
+	properties: {
+		walletName: {description: 'Name of the wallet', required: true},
+		copayerName: {description: 'Name of this copayer', default: 'BATM Server', required: true},
+		m: {description: 'Number of signatures required', pattern: /^\d+$/, required: true},
+		n: {description: 'Total number of copayers', pattern: /^\d+$/, required: true},
+		network: {description: 'Which network to use', pattern: /^(livenet|testnet)$/, default: 'livenet', required: true}
+	}
+};
+
+var walletFile;
+var program = common.program()
+	.option('-w, --wallet <name>', 'Name of the Copay wallet')
+	.option('-c, --copayer <name>', 'Name of this copayer')
+	.option('-m <num>', 'Number of signatures required (1-4)', /^[1234]$/)
+	.option('-n <num>', 'Number of copayers (1-6)', /^[123456]$/)
+	.option('-t, --network <network>', 'livenet or testnet')
+	.option('-f, --force', 'Force creation of a new wallet if one exists')
+	.arguments('<wallet-file>')
+	.action(function (_walletFile) {
+		walletFile = _walletFile;
+	})
+	.parse(process.argv);
+
+if (!walletFile) program.help();
+
+prompt.override = {
+	walletName: program.wallet,
+	copayerName: program.copayer,
+	m: parseInt(program.M),
+	n: parseInt(program.N),
+	network: program.network
+};
+
+async.waterfall([
+	checkForWallet,
+	getClientDoPrompt,
+	createWallet,
+	common.saveWalletCallback(walletFile)
+], function (err) {
+	if (err) console.log('ERROR:\n%s', err);
+});
+
+function getClientDoPrompt(next) {
+	prompt.start();
+	async.series({
+		client: async.apply(common.getClient, null, program.host, program.verbose),
+		prompt: async.apply(prompt.get, schema)
+	}, function (err, results) {
+		if (err) return next(err);
+		return next(null, results.prompt, results.client);
+	});
+}
+
+function checkForWallet(next) {
+	fs.readFile(walletFile, function (err) {
+		if (err == null && !program.force) return next('Must use --force to overwrite existing wallet');
+		return next(null);
+	})
+}
+
+function createWallet(p, client, next) {
+	client.createWallet(p.walletName, p.copayerName, p.m, p.n, {}, function (err, secret) {
+		return next(err, client, secret);
+	});
+}

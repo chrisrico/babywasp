@@ -1,0 +1,19 @@
+#!/usr/bin/env node
+var program = require('commander');
+
+program
+	.version('0.1.0')
+	.command('start <wallet-file>', 'Start the proxy', {isDefault: true})
+	.command('create <wallet-file>', 'Create a new wallet')
+	.command('revoke <wallet-file>', 'Revoke the current key (requires current mnemonic)')
+	.on('--help', function () {
+		console.log('  Notes:\n');
+		console.log('    This software uses the BitCore wallet service by Bitpay, which makes it');
+		console.log('    compatible with Copay. A useful configuration is a 1-of-n wallet, where');
+		console.log('    bbwsp acts as one signer, and n-1 others can use Copay to access sign.');
+		console.log('    A 2-of-n wallet would require manual approval for each trasnaction\n');
+		console.log('    For added security, use hardware wallets for the other signers.\n')
+		console.log('    By default bbwsp will connect to Bitpay\'s BWS instance, but running your');
+		console.log('    own is not that difficult. ');
+	})
+	.parse(process.argv);
