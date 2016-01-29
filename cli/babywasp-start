@@ -24,7 +24,7 @@ async.waterfall([
 		app.set('x-powered-by', false);
 
 		app.use(function (req, res, next) {
-			console.log('[info] %s\t%s\t%s', new Date(), req.ip, req.originalUrl);
+			console.log('[info] %s\t%s\t%s', dateStamp(), req.ip, req.originalUrl);
 			next();
 		});
 
@@ -38,13 +38,16 @@ async.waterfall([
 		});
 
 		app.listen(program.port, function () {
-			console.info('[info] Listening on port %s', program.port);
+			console.info('[info] %s\tListening on port %s', dateStamp(), program.port);
 		});
 	}
 ], function (err) {
-	if (err) console.error(err);
+	if (err) console.error('[error] %s\t%s', dateStamp(), err);
 });
 
+function dateStamp() {
+	return new Date().toISOString().slice(0, 19);
+}
 
 function getBalance(client) {
 	return function (req, res, next) {
