@@ -25,7 +25,8 @@ Common.getClient = function (walletFile, host, verbose, cb) {
 	async.waterfall([
 		async.constant(walletFile),
 		fs.readFile,
-		load
+		load,
+		checkEncryption
 	], cb);
 
 	function load(wallet, next) {
@@ -39,7 +40,15 @@ Common.getClient = function (walletFile, host, verbose, cb) {
 		} catch (e) {
 			return next(e);
 		}
-	}	
+	}
+
+	function checkEncryption(client, next) {
+		if (client.isPrivKeyEncrypted()) return next(null, client);
+		console.log('[warn] Your wallet is not encrypted, encrypting now.');
+		Common.saveWalletCallback(walletFile)(client, null, function (err) {
+			return next(err, client);
+		});
+	}
 };
 
 Common.unlockWallet = function (client, password, cb) {
@@ -68,9 +77,7 @@ Common.saveWalletCallback = function (walletFile) {
 			async.constant(walletFile, JSON.stringify(client.export())),
 			fs.writeFile,
 			outputData
-		], function (err) {
-			return cb(err);
-		});
+		], cb);
 
 		function outputData(next) {
 			var words = mnemonic.split(' ');
@@ -82,31 +89,31 @@ Common.saveWalletCallback = function (walletFile) {
 			console.log(words.slice(6, 12).join(' ') + '\n');
 			console.log(' This is your wallet API key. Put this in your BATM server configuration.\n');
 			console.log(apiKey + '\n');
-			if (secret) {
-				console.log(' This is your Copay secret, share this with your copayers.\n');
-				console.log(secret + '\n');
 
-				process.stdout.write('  Waiting for other copayers');
-				var complete = false;
-				async.until(
-					function () { return complete; },
-					function (cb) {
-						setTimeout(function () {
-							process.stdout.write('.');
-							client.openWallet(function (err, c) {
-								complete = c;
-								if (err) return cb(err);
-								cb(null);
-							});
-						}, 250);
-					},
-					function (err) {
-						if (err) return next(err);
-						console.log('\n  Your wallet is ready to use.');
-						return next();
-					}
-				);
-			}
+			if (!secret) return next();
+			console.log(' This is your Copay secret, share this with your copayers.\n');
+			console.log(secret + '\n');
+
+			process.stdout.write('  Waiting for other copayers');
+			var complete = false;
+			async.until(
+				function () { return complete; },
+				function (cb) {
+					setTimeout(function () {
+						process.stdout.write('.');
+						client.openWallet(function (err, c) {
+							complete = c;
+							if (err) return cb(err);
+							cb(null);
+						});
+					}, 250);
+				},
+				function (err) {
+					if (err) return next(err);
+					console.log('\n  Your wallet is ready to use.');
+					return next();
+				}
+			);
 		}
 	}
 };
