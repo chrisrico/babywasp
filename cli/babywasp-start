@@ -59,10 +59,27 @@ function getBalance(client) {
 }
 
 function getAddress(client) {
+	var cachedAddress;
+
 	return function (req, res, next) {
-		client.createAddress({}, function (err, address) {
+		function write(address) {
+			if (address) cachedAddress = address.address;
+			res.json(cachedAddress);
+		}
+
+		function create() {
+			client.createAddress({}, function (err, address) {
+				if (err) return next(err);
+				write(address);
+			});
+		}
+
+		if (!cachedAddress) return create();
+
+		client.getUtxos({addresses: [cachedAddress]}, function (err, utxos) {
 			if (err) return next(err);
-			res.json(address.address);
+			if (utxos.length > 0) return create();
+			write();
 		});
 	}
 }

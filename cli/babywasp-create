@@ -46,7 +46,7 @@ async.waterfall([
 	createWallet,
 	common.saveWalletCallback(walletFile)
 ], function (err) {
-	if (err) console.log('ERROR:\n%s', err);
+	if (err) console.log('[error] %s', err);
 });
 
 function getClientDoPrompt(next) {

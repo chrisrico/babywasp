@@ -26,7 +26,8 @@ Common.getClient = function (walletFile, host, verbose, cb) {
 		async.constant(walletFile),
 		fs.readFile,
 		load,
-		checkEncryption
+		checkEncryption,
+		scan
 	], cb);
 
 	function load(wallet, next) {
@@ -46,6 +47,12 @@ Common.getClient = function (walletFile, host, verbose, cb) {
 		if (client.isPrivKeyEncrypted()) return next(null, client);
 		console.log('[warn] Your wallet is not encrypted, encrypting now.');
 		Common.saveWalletCallback(walletFile)(client, null, function (err) {
+			return next(err, client);
+		});
+	}
+
+	function scan(client, next) {
+		client.startScan({includeCopayerBranches: true}, function (err) {
 			return next(err, client);
 		});
 	}
