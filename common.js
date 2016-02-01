@@ -5,9 +5,10 @@ var bip39 = require('bip39');
 var crypto = require('crypto')
 var bitcore = require('bitcore-wallet-client');
 var program = require('commander')
+var finder = require('find-package-json')(__dirname);
 
 var Common = {
-	version: JSON.parse(fs.readFileSync('../package.json')).version
+	version: finder.next().value.version
 };
 
 Common.program = function () {	
