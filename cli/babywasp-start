@@ -86,6 +86,8 @@ function getAddress(client) {
 
 function send(client) {
 	return function (req, res, next) {
+		if (!client.canSign()) return next('Wallet has no private keys');
+
 		var apiKey = req.get('x-api-key');
 		var opts = {
 			toAddress: req.params.address,
@@ -109,18 +111,21 @@ function send(client) {
 			function (tx, next) {
 				res.json(tx.txid);
 			}
-		], function (err) {
-			client.lock();
-			if (err) return next(err);
-		});
+		], lock);
 	}
+}
+
+function lock(client, next) {
+	return function (err) {
+		client.lock();
+		if (err) return next(err);
+	};
 }
 
 function unlock(client) {
 	return function (apiKey, next) {
 		common.unlockWallet(client, apiKey, function (err) {
-			if (err) return next(err);
-			return next(null);
+			return next(err);
 		});
-	}
+	};
 }

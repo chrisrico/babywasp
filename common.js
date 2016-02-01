@@ -6,9 +6,11 @@ var crypto = require('crypto')
 var bitcore = require('bitcore-wallet-client');
 var program = require('commander')
 
-var Common = {};
+var Common = {
+	version: JSON.parse(fs.readFileSync('../package.json')).version
+};
 
-Common.program = function () {
+Common.program = function () {	
 	return program
 		.option('-v, --verbose', 'Enable verbose bitcore-wallet-client logging')
 		.option('-h, --host <host>', 'URL of BitCore wallet service (default: Bitpay)', 'https://bws.bitpay.com/bws/api');
@@ -32,7 +34,7 @@ Common.getClient = function (walletFile, host, verbose, cb) {
 
 	function load(wallet, next) {
 		try {
-			client.import(JSON.parse(wallet));
+			client.import(wallet);
 			client.openWallet(function (err, complete) {
 				if (err) return cb(err);
 				if (!complete) return cb('Wallet is unusable until all copayers have joined');
@@ -44,7 +46,7 @@ Common.getClient = function (walletFile, host, verbose, cb) {
 	}
 
 	function checkEncryption(client, next) {
-		if (client.isPrivKeyEncrypted()) return next(null, client);
+		if (!client.canSign() || client.isPrivKeyEncrypted()) return next(null, client);
 		console.log('[warn] Your wallet is not encrypted, encrypting now.');
 		Common.saveWalletCallback(walletFile)(client, null, function (err) {
 			return next(err, client);
@@ -71,8 +73,8 @@ Common.saveWalletCallback = function (walletFile) {
 	return function (client, secret, cb) {
 		var mnemonic = bip39.generateMnemonic();
 		var apiKey = crypto.createHash('sha256')
-		                   .update(bip39.mnemonicToSeed(mnemonic))
-		                   .digest('hex');
+			.update(bip39.mnemonicToSeed(mnemonic))
+			.digest('hex');
 
 		try {
 			client.setPrivateKeyEncryption(apiKey);						
@@ -81,7 +83,7 @@ Common.saveWalletCallback = function (walletFile) {
 		}
 
 		async.waterfall([
-			async.constant(walletFile, JSON.stringify(client.export())),
+			async.constant(walletFile, client.export()),
 			fs.writeFile,
 			outputData
 		], cb);
