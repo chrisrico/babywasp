@@ -8,21 +8,16 @@ var common = require('../common.js');
 
 var schema = {
 	properties: {
-		walletName: {description: 'Name of the wallet', required: true},
-		copayerName: {description: 'Name of this copayer', default: 'BATM Server', required: true},
-		m: {description: 'Number of signatures required', pattern: /^\d+$/, required: true},
-		n: {description: 'Total number of copayers', pattern: /^\d+$/, required: true},
-		network: {description: 'Which network to use', pattern: /^(livenet|testnet)$/, default: 'livenet', required: true}
+		walletName: {option: '-w, --wallet <name>', description: 'Name of the wallet', required: true},
+		copayerName: {option: '-c, --copayer <name>', description: 'Name of this copayer', default: 'BATM Server', required: true},
+		m: {option: '-m <num>', description: 'Number of signatures required (1-4)', pattern: /^[1234]$/, required: true},
+		n: {option: '-n <num>', description: 'Total number of copayers (1-6)', pattern: /^[123456]$/, required: true},
+		network: {option: '-t, --network', description: 'Which network to use (livenet/testnet)', pattern: /^(livenet|testnet)$/, default: 'livenet', required: true}
 	}
 };
 
 var walletFile;
-var program = common.program()
-	.option('-w, --wallet <name>', 'Name of the Copay wallet')
-	.option('-c, --copayer <name>', 'Name of this copayer')
-	.option('-m <num>', 'Number of signatures required (1-4)', /^[1234]$/)
-	.option('-n <num>', 'Number of copayers (1-6)', /^[123456]$/)
-	.option('-t, --network <network>', 'livenet or testnet')
+var program = common.program(schema.properties)
 	.option('-f, --force', 'Force creation of a new wallet if one exists')
 	.arguments('<wallet-file>')
 	.action(function (_walletFile) {
@@ -35,8 +30,8 @@ if (!walletFile) program.help();
 prompt.override = {
 	walletName: program.wallet,
 	copayerName: program.copayer,
-	m: parseInt(program.M),
-	n: parseInt(program.N),
+	m: program.M,
+	n: program.N,
 	network: program.network
 };
 
@@ -68,7 +63,7 @@ function checkForWallet(next) {
 }
 
 function createWallet(p, client, next) {
-	client.createWallet(p.walletName, p.copayerName, p.m, p.n, {}, function (err, secret) {
+	client.createWallet(p.walletName, p.copayerName, parseInt(p.m), parseInt(p.n), {}, function (err, secret) {
 		return next(err, client, secret);
 	});
 }

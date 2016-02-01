@@ -11,10 +11,18 @@ var Common = {
 	version: finder.next().value.version
 };
 
-Common.program = function () {	
-	return program
+Common.program = function (properties) {
+	program = program
 		.option('-v, --verbose', 'Enable verbose bitcore-wallet-client logging')
 		.option('-h, --host <host>', 'URL of BitCore wallet service (default: Bitpay)', 'https://bws.bitpay.com/bws/api');
+
+	Object.keys(properties || {})
+		.forEach(function(key) {
+			var el = properties[key];
+			program = program.option(el.option, el.description, el.pattern);
+		});
+
+	return program;
 };
 
 Common.getClient = function (walletFile, host, verbose, cb) {
