@@ -25,5 +25,6 @@ async.waterfall([
 });
 
 function exportNoSign(client, next) {
+	if (!client.canSign()) return next('Wallet has no private keys');
 	return next(null, outputFile, client.export({noSign: true}));
 }
