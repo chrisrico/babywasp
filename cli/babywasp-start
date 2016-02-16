@@ -62,6 +62,8 @@ function getAddress(client) {
 	var cachedAddress;
 
 	return function (req, res, next) {
+		var force = !!req.query.force;
+
 		function write(address) {
 			if (address) cachedAddress = address.address;
 			res.json(cachedAddress);
@@ -74,7 +76,7 @@ function getAddress(client) {
 			});
 		}
 
-		if (!cachedAddress) return create();
+		if (!cachedAddress || force) return create();
 
 		client.getUtxos({addresses: [cachedAddress]}, function (err, utxos) {
 			if (err) return next(err);

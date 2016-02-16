@@ -38,6 +38,7 @@ Common.getClient = function (walletFile, host, verbose, cb) {
 		fs.readFile,
 		load,
 		checkEncryption,
+		recreate,
 		scan
 	], cb);
 
@@ -45,8 +46,8 @@ Common.getClient = function (walletFile, host, verbose, cb) {
 		try {
 			client.import(wallet);
 			client.openWallet(function (err, complete) {
-				if (err) return cb(err);
-				if (!complete) return cb('Wallet is unusable until all copayers have joined');
+				if (err) return next(err);
+				if (!complete) return next('Wallet is unusable until all copayers have joined');
 				return next(null, client);
 			});
 		} catch (e) {
@@ -58,6 +59,12 @@ Common.getClient = function (walletFile, host, verbose, cb) {
 		if (!client.canSign() || client.isPrivKeyEncrypted()) return next(null, client);
 		console.log('[warn] Your wallet is not encrypted, encrypting now.');
 		Common.saveWalletCallback(walletFile)(client, null, function (err) {
+			return next(err, client);
+		});
+	}
+
+	function recreate(client, next) {
+		client.recreateWallet(function (err) {
 			return next(err, client);
 		});
 	}
