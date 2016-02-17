@@ -7,13 +7,14 @@ var request = require('request');
 
 var common = require('../common');
 
-var feeApiUrl = 'https://bitcoinfees.21.co/api/v1/fees/recommended';
+const minFeePerKb = 10000;
 
 var walletFile;
 var program = common.program()
+	.option('-i, --insight <url>', 'URL of Insight API (default: BlockExplorer)', 'https://blockexplorer.com/api')
 	.option('-p, --port <port>', 'Port on which to listen (default: 7000)', 7000)
-	.option('-f, --fee-policy <policy>', 'Determines average confirmation time (economy/normal/priority)', /^(economy|normal|priority)$/i, 'normal')
-	.option('-F, --default-fee <fee>', 'Default fee (Satoshis/KB) if unable to calculate', 10000)
+	.option('-b, --block-target <n>', 'Fee is calculated to include transaction in N blocks', parseInt, 2)
+	.option('-f, --default-fee <satoshis>', 'Default fee (in Satoshis) per KB in case calculation fails', parseInt, minFeePerKb)
 	.arguments('<wallet-file>')
 	.action(function (_walletFile) {
 		walletFile = _walletFile;
@@ -22,21 +23,23 @@ var program = common.program()
 program.parse(process.argv);
 if (!walletFile) program.help();
 
-var cachedFee = program.defaultFee;
-var feeNameMap = { economy: 'hourFee', normal: 'halfHourFee', priority: 'fastestFee' };
+var feeApiUrl = program.insight + '/utils/estimateFee?nbBlocks=' + program.blockTarget;
 
-function calculateFee() {
+var feeEstimate = program.defaultFee;
+function getFeeEstimate() {
 	request(feeApiUrl, function(err, response, body) {
-		if (err || response.statusCode != 200) return;
+		if (err || response.statusCode != 200) {
+			console.log('[error] %s\tFailed to retrieve fee estimate %s', dateStamp(), err || 'Status code ' + response.statusCode);
+			return;
+		}
 
-		// convert from Satoshis/B to Satoshi/KB
-		var fee = JSON.parse(body)[feeNameMap[program.feePolicy]] * 1000;
-		if (cachedFee != fee) {
-			cachedFee = fee;
-			console.log('[info] %s\tNew fee for %s policy: %s Satoshis/KB', dateStamp(), program.feePolicy, fee);
+		var fee = Math.floor(JSON.parse(body)[program.blockTarget] * Math.pow(10, 8));
+		if (feeEstimate != fee) {
+			feeEstimate = fee;
+			console.log('[info] %s\tUpdated fee estimate to %s Satoshis/KB', dateStamp(), fee);
 		}
 	});
-	setTimeout(calculateFee, 1000 * 60 * 15).unref();
+	setTimeout(getFeeEstimate, 1000 * 60 * 15).unref();
 }
 
 async.waterfall([
@@ -67,7 +70,7 @@ async.waterfall([
 	if (err) console.error('[error] %s\t%s', dateStamp(), err);
 });
 
-calculateFee();
+getFeeEstimate();
 
 function dateStamp() {
 	return new Date().toISOString().slice(0, 19);
@@ -110,18 +113,26 @@ function getAddress(client) {
 	}
 }
 
+function calculateFee(amount) {
+	// don't pay more than 1/20 of the amount per KB
+	// don't pay less than 10000 satoshis per KB
+	return Math.max(Math.min(cachedFee, Math.floor(amount/20)), minFeePerKb);
+}
+
 function send(client) {
 	return function (req, res, next) {
 		if (!client.canSign()) return next('Wallet has no private keys');
 
 		var apiKey = req.get('x-api-key');
+		var amount = parseInt(req.query.amount);
+		if (isNaN(amount)) return next('Invalid parameter value: amount');
+
 		var opts = {
 			toAddress: req.params.address,
-			amount: parseInt(req.query.amount),
+			amount: amount,
 			message: req.query.description,
-			feePerKb: cachedFee
+			feePerKb: calculateFee(amount)
 		};
-		if (isNaN(opts.amount)) return next('Invalid parameter: amount');
 
 		async.waterfall([
 			async.constant(apiKey),

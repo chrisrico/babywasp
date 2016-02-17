@@ -14,7 +14,7 @@ var Common = {
 Common.program = function (properties) {
 	program = program
 		.option('-v, --verbose', 'Enable verbose bitcore-wallet-client logging')
-		.option('-h, --host <host>', 'URL of BitCore wallet service (default: Bitpay)', 'https://bws.bitpay.com/bws/api');
+		.option('-h, --host <url>', 'URL of BitCore wallet service (default: Bitpay)', 'https://bws.bitpay.com/bws/api');
 
 	Object.keys(properties || {})
 		.forEach(function(key) {
