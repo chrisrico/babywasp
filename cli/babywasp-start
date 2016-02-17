@@ -3,12 +3,17 @@ var util = require('util');
 var async = require('async');
 var bitcore = require('bitcore-wallet-client');
 var express = require('express');
+var request = require('request');
 
 var common = require('../common');
+
+var feeApiUrl = 'https://bitcoinfees.21.co/api/v1/fees/recommended';
 
 var walletFile;
 var program = common.program()
 	.option('-p, --port <port>', 'Port on which to listen (default: 7000)', 7000)
+	.option('-f, --fee-policy <policy>', 'Determines average confirmation time (economy/normal/priority)', /^(economy|normal|priority)$/i, 'normal')
+	.option('-F, --default-fee <fee>', 'Default fee (Satoshis/KB) if unable to calculate', 10000)
 	.arguments('<wallet-file>')
 	.action(function (_walletFile) {
 		walletFile = _walletFile;
@@ -16,6 +21,23 @@ var program = common.program()
 
 program.parse(process.argv);
 if (!walletFile) program.help();
+
+var cachedFee = program.defaultFee;
+var feeNameMap = { economy: 'hourFee', normal: 'halfHourFee', priority: 'fastestFee' };
+
+function calculateFee() {
+	request(feeApiUrl, function(err, response, body) {
+		if (err || response.statusCode != 200) return;
+
+		// convert from Satoshis/B to Satoshi/KB
+		var fee = JSON.parse(body)[feeNameMap[program.feePolicy]] * 1000;
+		if (cachedFee != fee) {
+			cachedFee = fee;
+			console.log('[info] %s\tNew fee for %s policy: %s Satoshis/KB', dateStamp(), program.feePolicy, fee);
+		}
+	});
+	setTimeout(calculateFee, 1000 * 60 * 15).unref();
+}
 
 async.waterfall([
 	async.apply(common.getClient, walletFile, program.host, program.verbose),
@@ -44,6 +66,8 @@ async.waterfall([
 ], function (err) {
 	if (err) console.error('[error] %s\t%s', dateStamp(), err);
 });
+
+calculateFee();
 
 function dateStamp() {
 	return new Date().toISOString().slice(0, 19);
@@ -94,7 +118,8 @@ function send(client) {
 		var opts = {
 			toAddress: req.params.address,
 			amount: parseInt(req.query.amount),
-			message: req.query.description
+			message: req.query.description,
+			feePerKb: cachedFee
 		};
 		if (isNaN(opts.amount)) return next('Invalid parameter: amount');
 
@@ -120,7 +145,7 @@ function send(client) {
 function lock(client, next) {
 	return function (err) {
 		client.lock();
-		if (err) return next(err);
+		return next(err);
 	};
 }
 
