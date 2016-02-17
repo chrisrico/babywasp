@@ -24,8 +24,8 @@ program.parse(process.argv);
 if (!walletFile) program.help();
 
 var feeApiUrl = program.insight + '/utils/estimateFee?nbBlocks=' + program.blockTarget;
-
 var feeEstimate = program.defaultFee;
+
 function getFeeEstimate() {
 	request(feeApiUrl, function(err, response, body) {
 		if (err || response.statusCode != 200) {
@@ -45,6 +45,10 @@ function getFeeEstimate() {
 async.waterfall([
 	async.apply(common.getClient, walletFile, program.host, program.verbose),
 	function (client, next) {
+		if (client.canSign()) {
+			getFeeEstimate();
+		}
+
 		var app = express();
 		app.set('x-powered-by', false);
 
@@ -69,8 +73,6 @@ async.waterfall([
 ], function (err) {
 	if (err) console.error('[error] %s\t%s', dateStamp(), err);
 });
-
-getFeeEstimate();
 
 function dateStamp() {
 	return new Date().toISOString().slice(0, 19);
@@ -116,7 +118,7 @@ function getAddress(client) {
 function calculateFee(amount) {
 	// don't pay more than 1/20 of the amount per KB
 	// don't pay less than 10000 satoshis per KB
-	return Math.max(Math.min(cachedFee, Math.floor(amount/20)), minFeePerKb);
+	return Math.max(Math.min(feeEstimate, Math.floor(amount/20)), minFeePerKb);
 }
 
 function send(client) {
