@@ -45,9 +45,7 @@ function getFeeEstimate() {
 async.waterfall([
 	async.apply(common.getClient, walletFile, program.host, program.verbose),
 	function (client, next) {
-		if (client.canSign()) {
-			getFeeEstimate();
-		}
+		if (client.canSign()) getFeeEstimate();
 
 		var app = express();
 		app.set('x-powered-by', false);
@@ -80,7 +78,7 @@ function dateStamp() {
 
 function getBalance(client) {
 	return function (req, res, next) {
-		client.getBalance({}, function (err, balance) {
+		client.getBalance({twoStep: true}, function(err, balance) {
 			if (err) return next(err);
 			res.json(balance.availableAmount);
 		});

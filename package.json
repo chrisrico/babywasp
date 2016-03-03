@@ -1,6 +1,6 @@
 {
   "name": "babywasp",
-  "version": "1.3.2",
+  "version": "1.3.3",
   "description": "BitCore wallet service proxy for BATM server",
   "main": "cli/babywasp",
   "scripts": {},
