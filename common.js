@@ -93,7 +93,8 @@ Common.saveWalletCallback = function (walletFile) {
 			.digest('hex');
 
 		try {
-			client.setPrivateKeyEncryption(apiKey);						
+			client.setPrivateKeyEncryption(apiKey);
+			client.lock();
 		} catch (e) {
 			return cb(e);
 		}

@@ -63,7 +63,7 @@ function checkForWallet(next) {
 }
 
 function createWallet(p, client, next) {
-	client.createWallet(p.walletName, p.copayerName, parseInt(p.m), parseInt(p.n), {}, function (err, secret) {
+	client.createWallet(p.walletName, p.copayerName, parseInt(p.m), parseInt(p.n), {network: p.network}, function (err, secret) {
 		return next(err, client, secret);
 	});
 }

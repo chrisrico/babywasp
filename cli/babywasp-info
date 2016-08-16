@@ -1,0 +1,92 @@
+#!/usr/bin/env node
+var async = require('async');
+var util = require('util');
+
+var common = require('../common');
+
+var walletFile;
+var program = common.program()
+	.option('-a, --anonymize', 'Remove identifiable information')
+	.arguments('<wallet-file>')
+	.action(function (_walletFile) {
+		walletFile = _walletFile;
+	});
+
+program.parse(process.argv);
+if (!walletFile) program.help();
+
+async.waterfall([
+	async.apply(common.getClient, walletFile, program.host, program.verbose),
+	function (client, next) {
+		async.parallel({
+			utxos: client.getUtxos.bind(client, {}),
+			txps: client.getTxProposals.bind(client, {}),
+			prefs: client.getPreferences.bind(client),
+			history: client.getTxHistory.bind(client, {limit: 50})
+		}, function (err, results) {
+			next(err, results);
+		});
+	},
+], function (err, results) {
+	if (err) return console.log(err);
+	printCredentials(results.creds);
+	printPreferences(results.prefs);
+	printTxps(results.txps);
+	printUtxos(results.utxos);
+	printHistory(results.history);
+});
+
+function anonymize(data, keys) {
+	if (Array.isArray(data)) {
+		data = data.map(function (d) {
+			return anonymize(d, keys);
+		});
+	} else if (data instanceof Object) {
+		Object.keys(data)
+			.forEach(function (k) {
+				if (keys.indexOf(k) >= 0) {
+					data[k] = '[redacted]';
+				} else {
+					data[k] = anonymize(data[k], keys);
+				}
+			});
+	};
+	return data;
+}
+
+function log(data, keys, options) {
+	if (program.anonymize) {
+		data = anonymize(data, keys);
+	}
+	console.log(util.inspect(data, { depth: null }));
+}
+
+function heading(name) {
+	log('\n' + name);
+	log('='.repeat(process.stdout.columns));
+}
+
+function printCredentials(creds) {
+	heading('Credentials');
+	log(creds, []);
+}
+
+function printPreferences(prefs) {
+	heading('Preferences')
+	log(prefs, []);
+}
+
+function printTxps(txps) {
+	heading('Transaction Proposals');
+	log(txps, ['id', '_id', 'walletId', 'creatorId', 'address', 'publicKeys']);
+}
+
+function printUtxos(utxos) {
+	heading('Unspent Transaction Outputs');
+	log(utxos, []);//['txid', 'address', 'scriptPubKey', 'satoshis']);
+}
+
+function printHistory(history) {
+	heading('Transaction History');
+	log(history, ['txid', 'amount', 'fees', 'time', 'address', 'addressTo', 'encryptedMessage', 'message']);
+}
