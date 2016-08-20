@@ -32,6 +32,7 @@ log.ERROR = 'error';
 var feeEstimate = minFeePerKB;
 function updateFeeEstimate(client) {
 	client.getFeeLevels(client.credentials.network, function (err, fees) {
+		if (err) return log(log.ERROR, err);
 		var targets = fees.filter(function(f) { return f.nbBlocks <= program.blockTarget; });
 		if (!targets) targets = fees;
 
