@@ -58,11 +58,15 @@ function log(data, keys, options) {
 	if (program.anonymize) {
 		data = anonymize(data, keys);
 	}
-	console.log(util.inspect(data, { depth: null }));
+	if (typeof(data) === 'string' || data instanceof String) {
+		console.log(data);
+	} else {
+		console.log(util.inspect(data, { depth: null, colors: true }));
+	}
 }
 
 function heading(name) {
-	log('\n' + name);
+	log(name);
 	log('='.repeat(process.stdout.columns));
 }
 

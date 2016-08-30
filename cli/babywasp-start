@@ -4,13 +4,10 @@ var express = require('express');
 
 var common = require('../common');
 
-const minFeePerKB = 10000;
-const fifteenMinutes = 1000 * 60 * 15;
-
 var walletFile;
 var program = common.program()
 	.option('-p, --port <port>', 'Port on which to listen (default: 7000)', 7000, parseInt)
-	.option('-b, --block-target <n>', 'Fee is calculated to include transaction in N blocks', 2, parseInt)
+	.option('-f, --fee-level <feeLevel>', 'Priority to use for sent transactions', /^(priority|normal|economy|superEconomy)$/i, 'normal')
 	.arguments('<wallet-file>')
 	.action(function (_walletFile) {
 		walletFile = _walletFile;
@@ -29,27 +26,9 @@ log.INFO = 'info';
 log.DEBUG = 'debug';
 log.ERROR = 'error';
 
-var feeEstimate = minFeePerKB;
-function updateFeeEstimate(client) {
-	client.getFeeLevels(client.credentials.network, function (err, fees) {
-		if (err) return log(log.ERROR, err);
-		var targets = fees.filter(function(f) { return f.nbBlocks <= program.blockTarget; });
-		if (!targets) targets = fees;
-
-		var fee = targets[targets.length - 1].feePerKB;
-		if (feeEstimate != fee) {
-			feeEstimate = fee;
-			log(log.INFO, 'Updated fee estimate to %s Satoshis/KB', fee);
-		}
-	});
-	setTimeout(updateFeeEstimate.bind(null, client), fifteenMinutes).unref();
-}
-
 async.waterfall([
 	async.apply(common.getClient, walletFile, program.host, program.verbose),
 	function (client, next) {
-		updateFeeEstimate(client);
-
 		var app = express();
 		app.set('x-powered-by', false);
 
@@ -116,12 +95,6 @@ function getAddress(client) {
 	}
 }
 
-function calculateFee(amount) {
-	// don't pay more than 1/20 of the amount per KB
-	// don't pay less than minFee per KB
-	return Math.max(Math.min(feeEstimate, Math.floor(amount/20)), minFeePerKB);
-}
-
 function timer(name) {
 	var start = Date.now();
 	return function () {
@@ -143,7 +116,7 @@ function send(client) {
 				amount: amount
 			}],
 			message: req.query.description,
-			feePerKb: calculateFee(amount)
+			feeLevel: program.feeLevel
 		};
 
 		async.waterfall([
