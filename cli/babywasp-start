@@ -18,13 +18,16 @@ if (!walletFile) program.help();
 
 function log(level, format) {
 	if (level == log.DEBUG && !program.verbose) return;
+
+	var ts = new Date().toISOString().slice(0, 19);
+
     var args = Array.prototype.slice.call(arguments, 2);
-    args.splice(0, 0, '[%s] %s\t' + format, level, dateStamp());
+    args.splice(0, 0, '[%s] %s\t' + format, level, ts);
     console.log.apply(console, args);
 }
-log.INFO = 'info';
-log.DEBUG = 'debug';
-log.ERROR = 'error';
+log.info = log.bind(null, 'info');
+log.debug = log.bind(null, 'debug');
+log.error = log.bind(null, 'error');
 
 async.waterfall([
 	async.apply(common.getClient, walletFile, program.host, program.verbose),
@@ -33,7 +36,8 @@ async.waterfall([
 		app.set('x-powered-by', false);
 
 		app.use(function (req, res, next) {
-			log(log.INFO, '%s\t%s', req.ip, req.originalUrl);
+			var ip = req.get('x-real-ip') || req.get('x-forwarded-for') || req.ip;
+			log.info('%s\t%s', ip, req.originalUrl);
 			next();
 		});
 
@@ -47,16 +51,12 @@ async.waterfall([
 		});
 
 		app.listen(program.port, function () {
-			log(log.INFO, 'Listening on port %s', program.port);
+			log.info('Listening on port %s', program.port);
 		});
 	}
 ], function (err) {
-	if (err) log(log.ERROR, err);
+	if (err) log.error(err);
 });
-
-function dateStamp() {
-	return new Date().toISOString().slice(0, 19);
-}
 
 function getBalance(client) {
 	return function (req, res, next) {
@@ -93,13 +93,6 @@ function getAddress(client) {
 			write();
 		});
 	}
-}
-
-function timer(name) {
-	var start = Date.now();
-	return function () {
-		log(log.DEBUG, '%s\t%d ms', name, Date.now() - start);
-	};
 }
 
 function send(client) {
