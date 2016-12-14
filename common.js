@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 var fs = require('fs');
 var async = require('async');
-var bip39 = require('bip39');
 var crypto = require('crypto')
 var bitcore = require('bitcore-wallet-client');
 var program = require('commander')
@@ -28,7 +27,7 @@ Common.program = function (properties) {
 Common.getClient = function (walletFile, host, verbose, cb) {
 	var client = new bitcore({
 		baseUrl: host,
-		verbose: verbose
+		logLevel: verbose ? 'debug' : 'silent'
 	});
 
 	if (!walletFile) return cb(null, client);
@@ -37,7 +36,6 @@ Common.getClient = function (walletFile, host, verbose, cb) {
 		async.constant(walletFile),
 		fs.readFile,
 		load,
-		checkEncryption,
 		recreate,
 		scan
 	], cb);
@@ -55,14 +53,6 @@ Common.getClient = function (walletFile, host, verbose, cb) {
 		}
 	}
 
-	function checkEncryption(client, next) {
-		if (!client.canSign() || client.isPrivKeyEncrypted()) return next(null, client);
-		console.log('[warn] Your wallet is not encrypted, encrypting now.');
-		Common.saveWalletCallback(walletFile)(client, null, function (err) {
-			return next(err, client);
-		});
-	}
-
 	function recreate(client, next) {
 		client.recreateWallet(function (err) {
 			return next(err, client);
@@ -76,71 +66,23 @@ Common.getClient = function (walletFile, host, verbose, cb) {
 	}
 };
 
-Common.unlockWallet = function (client, password, cb) {
-	try {
-		client.unlock(password);
-		return cb(null, client);
-	} catch (e) {
-		return cb(e);
-	}
-};
-
-Common.saveWalletCallback = function (walletFile) {
-	return function (client, secret, cb) {
-		var mnemonic = bip39.generateMnemonic();
+Common.encryptWallet = function (walletFile) {
+	return function (client, cb) {
 		var apiKey = crypto.createHash('sha256')
-			.update(bip39.mnemonicToSeed(mnemonic))
+			.update(crypto.randomBytes(256))
 			.digest('hex');
 
-		try {
-			client.setPrivateKeyEncryption(apiKey);
-			client.lock();
-		} catch (e) {
-			return cb(e);
-		}
+		client.encryptPrivateKey(apiKey);
 
 		async.waterfall([
 			async.constant(walletFile, client.export()),
 			fs.writeFile,
-			outputData
+			function (next) {
+				console.log('This is your wallet API key. Put this in your BATM server configuration.\n');
+				console.log(apiKey + '\n');
+				next();
+			}
 		], cb);
-
-		function outputData(next) {
-			var words = mnemonic.split(' ');
-
-			console.log('\n IMPORTANT:\n');
-			console.log(' This is the mnemonic version of your wallet password. You will need it to');
-			console.log(' change the wallet API key, so write it down and keep it safe.\n');
-			console.log(words.slice(0, 6).join(' '));
-			console.log(words.slice(6, 12).join(' ') + '\n');
-			console.log(' This is your wallet API key. Put this in your BATM server configuration.\n');
-			console.log(apiKey + '\n');
-
-			if (!secret) return next();
-			console.log(' This is your Copay secret, share this with your copayers.\n');
-			console.log(secret + '\n');
-
-			process.stdout.write('  Waiting for other copayers');
-			var complete = false;
-			async.until(
-				function () { return complete; },
-				function (cb) {
-					setTimeout(function () {
-						process.stdout.write('.');
-						client.openWallet(function (err, c) {
-							complete = c;
-							if (err) return cb(err);
-							cb(null);
-						});
-					}, 250);
-				},
-				function (err) {
-					if (err) return next(err);
-					console.log('\n  Your wallet is ready to use.');
-					return next();
-				}
-			);
-		}
 	}
 };
 

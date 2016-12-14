@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 var async = require('async');
 var express = require('express');
+var bodyParser = require('body-parser');
 
 var common = require('../common');
 
@@ -33,23 +34,38 @@ async.waterfall([
 	async.apply(common.getClient, walletFile, program.host, program.verbose),
 	function (client, next) {
 		var app = express();
-		app.set('x-powered-by', false);
 
 		app.use(function (req, res, next) {
 			var ip = req.get('x-real-ip') || req.get('x-forwarded-for') || req.ip;
-			log.info('%s\t%s', ip, req.originalUrl);
+			log.info('%s\t%s %s', ip, req.method, req.originalUrl);
 			next();
 		});
 
+		app.get('/address', getAddress(client, function (addresses) {
+			return addresses[0].address;
+		}));
 		app.get('/balance', getBalance(client));
-		app.get('/address', getAddress(client));
-		app.post('/send/:address', send(client));
+		app.post('/send/:address', send(client, function (req) {
+			return {
+				apiKey: req.get('x-api-key'),
+				outputs: [{
+					toAddress: req.params.address,
+					amount: parseInt(req.query.amount)
+				}],
+				message: req.query.message
+			};
+		}));
+
+		// bitcoind compatibility
+		app.post('/', bodyParser.json(), jsonrpc(client));
 
 		app.use(function (err, req, res, next) {
 			if (res.headersSent) return next(err);
-			res.status(500).json(err.hasOwnProperty('message') ? err.message : err);
+			log.error(err);
+			res.sendStatus(500);
 		});
 
+		app.set('x-powered-by', false);
 		app.listen(program.port, function () {
 			log.info('Listening on port %s', program.port);
 		});
@@ -58,78 +74,78 @@ async.waterfall([
 	if (err) log.error(err);
 });
 
+function jsonrpc(client) {
+	var _getAddress = getAddress(client, function (addresses) {
+		return addresses.map(function(addr) { return addr.address; });
+	});
+	var _getBalance = getBalance(client);
+	var _send = send(client, function (req) {
+		var auth = req.get('authorization').split(' ')[1];
+		var userPass = new Buffer(auth, 'base64').toString().split(':');
+		return {
+			apiKey: userPass[1],
+			outputs: [{
+				toAddress: req.body.params[1],
+				amount: req.body.params[2] * Math.pow(10, 8)
+			}],
+			message: req.body.params[4]
+		};
+	});
+
+	return function (req, res, next) {
+		switch (req.body.method) {
+			case 'getaddressesbyaccount':
+				return _getAddress(req, res, next);
+			case 'getbalance':
+				return _getBalance(req, res, next);
+			case 'sendfrom':
+				return _send(req, res, next);
+		}
+		next();
+	};
+}
+
+function getAddress(client, format) {
+	return function (req, res, next) {
+		client.getMainAddresses({limit: 1, reverse: true}, function (err, addresses) {
+			if (err) return next(err);
+			res.json(format(addresses));
+		})
+	}
+}
+
 function getBalance(client) {
 	return function (req, res, next) {
-		client.getBalance({twoStep: true}, function(err, balance) {
+		client.getBalance({}, function(err, balance) {
 			if (err) return next(err);
 			res.json(balance.availableAmount);
 		});
 	}
 }
 
-function getAddress(client) {
-	var cachedAddress;
-
-	return function (req, res, next) {
-		var force = req.query.force == 'true';
-
-		function write(address) {
-			if (address) cachedAddress = address.address;
-			res.json(cachedAddress);
-		}
-
-		function create() {
-			client.createAddress({}, function (err, address) {
-				if (err) return next(err);
-				write(address);
-			});
-		}
-
-		if (!cachedAddress || force) return create();
-
-		client.getUtxos({addresses: [cachedAddress]}, function (err, utxos) {
-			if (err) return next(err);
-			if (utxos.length > 0) return create();
-			write();
-		});
-	}
-}
-
-function send(client) {
+function send(client, getOpts) {
 	return function (req, res, next) {
 		if (!client.canSign()) return next('Wallet has no private keys');
 
-		var apiKey = req.get('x-api-key');
-		var amount = parseInt(req.query.amount);
-		if (isNaN(amount)) return next('Invalid parameter value: amount');
+		var opts = getOpts(req);
+		opts.feeLevel = program.feeLevel;
 
-		var opts = {
-			outputs: [{
-				toAddress: req.params.address,
-				amount: amount
-			}],
-			message: req.query.description,
-			feeLevel: program.feeLevel
-		};
+		if (!client.checkPassword(opts.apiKey)) return next('Invalid API key');
 
 		async.waterfall([
-			function (next) {
-				common.unlockWallet(client, apiKey, function (err) {
-					return next(err, opts);
-				});
-			},
-			client.createTxProposal.bind(client),
+			client.createTxProposal.bind(client, getOpts(req)),
 			function (txp, next) {
 				client.publishTxProposal({txp: txp}, next);
 			},
-			client.signTxProposal.bind(client),
+			function (txp, next) {
+				client.signTxProposal(txp, opts.apiKey, next);
+			},
 			client.broadcastTxProposal.bind(client),
 			function (tx, next) {
 				res.json(tx.txid);
 				next();
 			}
 		], function (err) {
-			client.lock();
 			return next(err);
 		});
 	}

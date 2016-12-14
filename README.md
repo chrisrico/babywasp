@@ -45,6 +45,10 @@ To export a watching only copy of the wallet:
 
 I recommend using a reverse proxy to serve this over a SSL connection and permit only the IPs you need to access it through your firewall. If you run your own BATM server, you can run it locally instead.
 
+## Examples
+
+Creating a 1-of-2 wallet
+
 ## Contributing
 
 1. Fork it!
@@ -55,4 +59,4 @@ I recommend using a reverse proxy to serve this over a SSL connection and permit
 
 ##License
 
-babywasp is licensed under [GPLv3](https://github.com/chrisrico/babywasp/edit/master/LICENSE)
+babywasp is licensed under [GPLv3](https://raw.githubusercontent.com/chrisrico/babywasp/master/LICENSE)

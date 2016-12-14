@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 var fs = require('fs');
 var async = require('async');
-var bip39 = require('bip39');
 var crypto = require('crypto')
 var prompt = require('prompt');
 
@@ -25,16 +24,13 @@ if (!walletFile) program.help();
 
 async.waterfall([
 	getClientDoPrompt,
-	getAPIKey,
-	common.unlockWallet,
-	disableEncryption,
-	common.saveWalletCallback(walletFile)
+	recoverWallet,
+	common.encryptWallet(walletFile)
 ], function (err) {
 	if (err) console.log('[error] %s', err);
 });
 
 function getClientDoPrompt(next) {
-	if (!client.canSign()) return next('Wallet has no private keys');
 	prompt.start();
 	async.series({
 		client: async.apply(common.getClient, walletFile, program.host, program.verbose),
@@ -45,19 +41,8 @@ function getClientDoPrompt(next) {
 	});
 }
 
-function getAPIKey(p, client, next) {
-	if (!bip39.validateMnemonic(p.mnemonic.trim())) return next('Invalid mnemonic');
-	var apiKey = crypto.createHash('sha256')
-					.update(bip39.mnemonicToSeed(p.mnemonic))
-					.digest('hex');
-	return next(null, client, apiKey);
-}
+function recoverWallet(p, client, next) {
+	client.seedFromMnemonic(p.mnemonic, client.credentials);
 
-function disableEncryption(client, next) {
-	try {
-		client.disablePrivateKeyEncryption();
-		return next(null, client, null);			
-	} catch (e) {
-		return next(e);
-	}
+	return next(null, client);
 }
