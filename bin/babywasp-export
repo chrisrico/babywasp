@@ -10,8 +10,6 @@ util.init(onInit)
 	.parse(process.argv);
 
 function onInit(outputFile, options, wallet) {
-	if (!outputFile) options.help();
-
 	async.waterfall([
 		wallet.load.bind(wallet),
 		function (next) {

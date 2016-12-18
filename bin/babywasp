@@ -8,7 +8,7 @@ program
 	.version(util.version)
 	.command('start <wallet-file>', 'Start the proxy', {isDefault: true})
 	.command('join <wallet-file>', 'Join a shared wallet')
-	.command('export <wallet-file>', 'Exports a watching only copy of the wallet')
+	.command('export <wallet-file> <output-file>', 'Exports a watching only copy of the wallet')
 	.command('recover <wallet-file>', 'Recover the wallet from a mnemonic')
 	.command('info <wallet-file>', 'Outputs information about the wallet')
 	.on('--help', function () {

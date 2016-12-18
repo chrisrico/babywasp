@@ -1,6 +1,6 @@
 {
   "name": "babywasp",
-  "version": "1.5.1",
+  "version": "1.5.2",
   "description": "BitCore wallet service proxy for BATM server",
   "main": "bin/babywasp",
   "scripts": {},
@@ -16,10 +16,10 @@
   "bin": {
     "babywasp": "./bin/babywasp",
     "babywasp-export": "./bin/babywasp-export",
-    "babywasp-info": "./bin/babywasp-info"
+    "babywasp-info": "./bin/babywasp-info",
     "babywasp-join": "./bin/babywasp-join",
     "babywasp-recover": "./bin/babywasp-recover",
-    "babywasp-start": "./bin/babywasp-start",
+    "babywasp-start": "./bin/babywasp-start"
   },
   "homepage": "https://github.com/chrisrico/babywasp#readme",
   "dependencies": {
@@ -29,6 +29,7 @@
     "commander": "^2.9.0",
     "express": "^4.14.0",
     "find-package-json": "^1.0.0",
+    "monkeypatch": "^1.0.0",
     "prompt": "^1.0.0",
     "request": "^2.79.0"
   }

@@ -11,7 +11,7 @@ util.init(onInit)
 
 function onInit(options, wallet) {
 	wallet.load(function (err) {
-		if (err) throw new Error(err);
+		if (err) return log.error(err);
 
 		if (!wallet.client.canSign()) console.log('WARNING: Wallet contains no private keys, unable to sign proposals.');
 
