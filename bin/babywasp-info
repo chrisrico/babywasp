@@ -1,0 +1,86 @@
+#!/usr/bin/env node
+
+var async = require('async');
+var utils = require('util');
+
+var util = require('../lib/util');
+
+util.init(onInit)
+	.option('-a, --anonymizer [', 'Remove identifiable information')
+	.parse(process.argv);
+
+function onInit(options, wallet) {
+	var client = wallet.client;
+	async.parallel({
+		utxos: client.getUtxos.bind(client, {}),
+		txps: client.getTxProposals.bind(client, {}),
+		prefs: client.getPreferences.bind(client),
+		history: client.getTxHistory.bind(client, {limit: 50})
+	}, function (err, results) {
+		if (err) return console.log(err);
+		if (results.creds) printCredentials(results.creds, options.anonymizer);
+		if (results.prefs) printPreferences(results.prefs, options.anonymizer);
+		if (results.txps) printTxps(results.txps, options.anonymizer);
+		if (results.utxos) printUtxos(results.utxos, options.anonymizer);
+		if (results.history) printHistory(results.history, options.anonymizer);
+	});
+}
+
+function anonymize(data, keys, anonymizer) {
+	if (Array.isArray(data)) {
+		data = data.map(function (d) {
+			return anonymize(d, keys);
+		});
+	} else if (data instanceof Object) {
+		Object.keys(data)
+			.forEach(function (k) {
+				if (keys.indexOf(k) >= 0) {
+					data[k] = anonymizer;
+				} else {
+					data[k] = anonymize(data[k], keys);
+				}
+			});
+	}
+	return data;
+}
+
+function print(data, keys, anonymizer) {
+	if (anonymizer) {
+		data = anonymize(data, keys, anonymizer);
+	}
+	if (typeof(data) === 'string' || data instanceof String) {
+		console.log(data);
+	} else {
+		console.log(utils.inspect(data, { depth: null, colors: true }));
+	}
+}
+
+function printHeading(name) {
+	print(name);
+	print('='.repeat(process.stdout.columns));
+}
+
+function printCredentials(creds, anonymizer) {
+	printHeading('Credentials');
+	print(creds, anonymizer, []);
+}
+
+function printPreferences(prefs, anonymizer) {
+	printHeading('Preferences');
+	print(prefs, anonymizer, []);
+}
+
+function printTxps(txps, anonymizer) {
+	printHeading('Transaction Proposals');
+	print(txps, anonymizer, ['id', '_id', 'walletId', 'creatorId', 'address', 'publicKeys']);
+}
+
+function printUtxos(utxos, anonymizer) {
+	printHeading('Unspent Transaction Outputs');
+	print(utxos, anonymizer, []);//['txid', 'address', 'scriptPubKey', 'satoshis']);
+}
+
+function printHistory(history, anonymizer) {
+	printHeading('Transaction History');
+	print(history, anonymizer, ['txid', 'amount', 'fees', 'time', 'address', 'addressTo', 'encryptedMessage', 'message']);
+}

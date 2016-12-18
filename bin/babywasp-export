@@ -1,0 +1,29 @@
+#!/usr/bin/env node
+
+var fs = require('fs');
+var async = require('async');
+
+var util = require('../lib/util');
+
+util.init(onInit)
+	.arguments('<output-file>')
+	.parse(process.argv);
+
+function onInit(outputFile, options, wallet) {
+	if (!outputFile) options.help();
+
+	async.waterfall([
+		wallet.load.bind(wallet),
+		function (next) {
+			if (!wallet.client.canSign()) return next('Wallet has no private keys');
+			next(null, outputFile, wallet.client.export({noSign: true}));
+		},
+		fs.writeFile,
+		function (next) {
+			console.log('Successfully exported wallet without private keys.');
+			next();
+		}
+	], function (err) {
+		if (err) console.error(err);
+	});
+}
