@@ -1,0 +1,58 @@
+#!/usr/bin/env node
+
+var fs = require('fs');
+var async = require('async');
+
+var util = require('../lib/util');
+
+var prompts = {
+	copayer: {
+		description: 'Name of this copayer',
+		default: 'BATM Server',
+		required: true
+	},
+	invitation: {
+		description: 'Wallet invitation from Copay',
+		required: true
+	},
+	language: {
+		description: 'Which BIP39 word list to use (en/fr/it/ja/es/zh)',
+		pattern: /^(en|fr|it|ja|es|zh)$/,
+		message: 'Must be one of the valid language options',
+		default: 'en'
+	}
+};
+
+util.init(prompts, onInit)
+	.option('-f, --force', 'Force creation of a new wallet if one exists')
+	.parse(process.argv);
+
+function onInit(options, wallet, input) {
+	async.waterfall([
+		async.constant(wallet.file),
+		fs.readFile,
+		function (err, next) {
+			if (!!err && !options.force) return next('Must use --force to overwrite existing wallet');
+
+			var network = input.invitation.slice(-1) == 'L' ?  'livenet' : 'testnet';
+			wallet.seedFromRandom(network, input.language);
+			next(null, input.invitation, input.copayer);
+		},
+		wallet.join.bind(wallet),
+		function (next) {
+			var mnemonic = wallet.client.getMnemonic().split(' ');
+			console.log('\n IMPORTANT:\n');
+			console.log(' This is your wallet mnemonic. You need it to restore from backup.\n');
+			console.log(mnemonic.slice(0, 6).join(' '));
+			console.log(mnemonic.slice(6, 12).join(' ') + '\n');
+			next();
+		},
+		wallet.encrypt.bind(wallet)
+	], function (err, password) {
+		if (err) return console.error(err);
+
+		console.log(' This is the wallet password for your BATM configuration.\n');
+		console.log(password + '\n');
+	});
+
+}

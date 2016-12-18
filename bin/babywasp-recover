@@ -1,0 +1,48 @@
+#!/usr/bin/env node
+
+var async = require('async');
+var prompt = require('prompt');
+
+var util = require('../lib/util.js');
+
+var prompts = {
+	mnemonic: {
+		description: '12 word mnemonic created with the wallet',
+		pattern: /^([\w]+\s?){12}$/,
+		message: 'Must be a valid mnemonic (12 words separated by spaces)',
+		required: true
+	}
+};
+
+var missingWallet = {
+	network: {
+		description: 'On which network was this wallet? (livenet/testnet)',
+		pattern: /^(livenet|testnet)$/,
+		message: 'Must be a valid bitcoin network',
+		default: 'livenet',
+		required: true
+	}
+};
+
+util.init(prompts, onInit)
+	.parse(process.argv);
+
+function onInit(options, wallet, input) {
+	wallet.load(function (err) {
+		prompt.override = {network: err ? null : wallet.client.credentials.network};
+
+		async.waterfall([
+			prompt.get.bind(prompt, {properties: missingWallet}),
+			function (recoverInput, next) {
+				wallet.seedFromMnemonic(input.mnemonic, recoverInput.network);
+				next();
+			},
+			wallet.encrypt.bind(wallet)
+		], function (err, password) {
+			if (err) return;
+
+			console.log('\n This is the wallet password for your BATM configuration.\n');
+			console.log(password + '\n');
+		});
+	});
+}

@@ -1,0 +1,20 @@
+#!/usr/bin/env node
+
+var log = require('../lib/log');
+var util = require('../lib/util');
+var run = require('../web/server');
+
+util.init(onInit)
+	.option('-p, --port <port>', 'Port on which to listen (default: 7000)', parseInt, 7000)
+	.option('-f, --fee-level <feeLevel>', 'Priority to use for sent transactions', /^(priority|normal|economy|superEconomy)$/i, 'normal')
+	.parse(process.argv);
+
+function onInit(options, wallet) {
+	wallet.load(function (err) {
+		if (err) throw new Error(err);
+
+		if (!wallet.client.canSign()) console.log('WARNING: Wallet contains no private keys, unable to sign proposals.');
+
+		run(options, wallet);
+	});
+}
