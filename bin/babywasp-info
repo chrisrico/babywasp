@@ -1,12 +1,14 @@
 #!/usr/bin/env node
 
 var async = require('async');
+var crypto = require('crypto');
 var utils = require('util');
 
 var util = require('../lib/util');
 
 util.init(onInit)
-	.option('-a, --anonymizer <placeholder>', 'Replace identifiable information with this text')
+	.option('-a, --anonymize', 'Replace addresses, transaction IDs, etc with hashes')
+	.option('-d, --depth', 'How many levels of object properties to traverse')
 	.parse(process.argv);
 
 function onInit(options, wallet) {
@@ -21,70 +23,80 @@ function onInit(options, wallet) {
 			history: client.getTxHistory.bind(client, {limit: 50})
 		}, function (err, results) {
 			if (err) return console.log(err);
-			if (results.creds) printCredentials(results.creds, options.anonymizer);
-			if (results.prefs) printPreferences(results.prefs, options.anonymizer);
-			if (results.txps) printTxps(results.txps, options.anonymizer);
-			if (results.utxos) printUtxos(results.utxos, options.anonymizer);
-			if (results.history) printHistory(results.history, options.anonymizer);
+
+			var printer = new Printer(options);
+			if (results.prefs) printer.preferences(results.prefs);
+			if (results.txps) printer.txps(results.txps);
+			if (results.utxos) printer.utxos(results.utxos);
+			if (results.history) printer.history(results.history);
 		});
 	});
 }
 
-function anonymize(data, anonymizer, keys) {
+function Printer(options) {
+	options = options || {};
+	this.depth = options.depth || 3;
+	this.anonymize = options.anonymize;
+}
+
+Printer.prototype.print = function (data, keys) {
+	if (this.anonymize) {
+		data = anonymize(data, keys);
+	}
+	if (typeof(data) === 'string' || data instanceof String) {
+		console.log(data);
+	} else {
+		console.log(utils.inspect(data, { depth: this.depth, colors: true }));
+	}
+};
+
+Printer.prototype.heading = function(name) {
+	this.print(name);
+	this.print('='.repeat(process.stdout.columns));
+};
+
+Printer.prototype.preferences = function(prefs) {
+	this.heading('Preferences');
+	this.print(prefs, []);
+};
+
+Printer.prototype.txps = function(txps) {
+	this.heading('Transaction Proposals');
+	this.print(txps, ['walletId', 'creatorId', 'address', 'publicKeys']);
+};
+
+Printer.prototype.utxos = function(utxos) {
+	this.heading('Unspent Transaction Outputs');
+	this.print(utxos, ['txid', 'address', 'scriptPubKey']);
+};
+
+Printer.prototype.history = function(history) {
+	this.heading('Transaction History');
+	this.print(history, ['txid', 'address', 'addressTo', 'encryptedMessage', 'message']);
+};
+
+function hash(data) {
+	if (!data) return data;
+	return 'x' + crypto.createHash('sha256')
+		.update(data)
+		.digest('hex')
+		.substring(0, 15);
+}
+
+function anonymize(data, keys) {
 	if (Array.isArray(data)) {
 		data = data.map(function (d) {
-			return anonymize(d, anonymizer, keys);
+			return anonymize(d, keys);
 		});
 	} else if (data instanceof Object) {
 		Object.keys(data)
 			.forEach(function (k) {
 				if (keys.indexOf(k) >= 0) {
-					data[k] = anonymizer || '[redacted]';
+					data[k] = hash(data[k]);
 				} else {
-					data[k] = anonymize(data[k], anonymizer, keys);
+					data[k] = anonymize(data[k], keys);
 				}
 			});
 	}
 	return data;
-}
-
-function print(data, anonymizer, keys) {
-	if (anonymizer) {
-		data = anonymize(data, anonymizer, keys);
-	}
-	if (typeof(data) === 'string' || data instanceof String) {
-		console.log(data);
-	} else {
-		console.log(utils.inspect(data, { depth: null, colors: true }));
-	}
-}
-
-function printHeading(name) {
-	print(name);
-	print('='.repeat(process.stdout.columns));
-}
-
-function printCredentials(creds, anonymizer) {
-	printHeading('Credentials');
-	print(creds, anonymizer, []);
-}
-
-function printPreferences(prefs, anonymizer) {
-	printHeading('Preferences');
-	print(prefs, anonymizer, []);
-}
-
-function printTxps(txps, anonymizer) {
-	printHeading('Transaction Proposals');
-	print(txps, anonymizer, ['id', '_id', 'walletId', 'creatorId', 'address', 'publicKeys']);
-}
-
-function printUtxos(utxos, anonymizer) {
-	printHeading('Unspent Transaction Outputs');
-	print(utxos, anonymizer, []);//['txid', 'address', 'scriptPubKey', 'satoshis']);
-}
-
-function printHistory(history, anonymizer) {
-	printHeading('Transaction History');
-	print(history, anonymizer, ['txid', 'amount', 'fees', 'time', 'address', 'addressTo', 'encryptedMessage', 'message']);
 }
