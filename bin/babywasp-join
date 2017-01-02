@@ -29,17 +29,16 @@ util.init(prompts, onInit)
 
 function onInit(options, wallet, input) {
 	async.waterfall([
-		async.constant(wallet.file),
-		fs.readFile,
-		function (err, next) {
-			if (!!err && !options.force) return next('Must use --force to overwrite existing wallet');
+		function (next) {
+			if (fs.existsSync(wallet.file) && !options.force)
+				return next('Must use --force to overwrite existing wallet');
 
 			var network = input.invitation.slice(-1) == 'L' ?  'livenet' : 'testnet';
 			wallet.seedFromRandom(network, input.language);
 			next(null, input.invitation, input.copayer);
 		},
 		wallet.join.bind(wallet),
-		function (next) {
+		function (_, next) {
 			var mnemonic = wallet.client.getMnemonic().split(' ');
 			console.log('\n IMPORTANT:\n');
 			console.log(' This is your wallet mnemonic. You need it to restore from backup.\n');

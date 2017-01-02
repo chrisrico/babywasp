@@ -1,8 +1,9 @@
 module.exports = function (wallet) {
     return function (req, res, next) {
-        wallet.getBalance(function(err, balance) {
+        wallet.getBalance(req.opts.includeUnconfirmed, function(err, balance) {
             if (err) return next(err);
-            res.json(balance);
+            req.result = balance;
+            next();
         });
     }
 };

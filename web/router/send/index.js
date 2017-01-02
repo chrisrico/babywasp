@@ -1,8 +1,9 @@
 module.exports = function (wallet) {
     return function (req, res, next) {
-        wallet.send(req.body, req.password, function (err, tx) {
+        wallet.send(req.opts, req.password, function (err, tx) {
             if (err) return next(err);
-            res.json(tx.txid);
+            req.result = tx.txid;
+            next();
         });
     }
 };

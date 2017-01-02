@@ -1,8 +1,9 @@
-module.exports = function (wallet, format) {
+module.exports = function (wallet) {
     return function (req, res, next) {
-        wallet.getAddress(req.query.force == 'true', function(err, address) {
+        wallet.getAddress(req.opts.force, function(err, address) {
             if (err) return next(err);
-            res.json(format(address));
+            req.result = address;
+            next();
         });
     }
 };
