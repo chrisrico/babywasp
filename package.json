@@ -1,6 +1,6 @@
 {
   "name": "babywasp",
-  "version": "1.6.1",
+  "version": "1.6.3",
   "description": "Bitcore wallet service proxy",
   "main": "bin/babywasp",
   "scripts": {},
@@ -24,6 +24,7 @@
   "homepage": "https://github.com/chrisrico/babywasp#readme",
   "dependencies": {
     "async": "^2.1.4",
+    "bitcoin-address": "^0.3.0",
     "bitcore-wallet-client": "^4.4.0",
     "body-parser": "^1.15.2",
     "commander": "^2.9.0",
