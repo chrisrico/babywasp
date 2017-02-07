@@ -33,7 +33,11 @@ module.exports = function (addressValidator) {
     }
 
     function write(req, res, next) {
-        res.json(req.result);
+        if ('result' in req) {
+            res.json(req.result);
+        } else {
+            res.sendStatus(404);
+        }
     }
 
     function error(err, req, res, next) {

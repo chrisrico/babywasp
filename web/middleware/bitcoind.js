@@ -11,7 +11,7 @@ function rpcError(message, code) {
     };
 }
 
-module.exports = function (addressValidator) {
+module.exports = function (addressValidator, passwordValidator) {
     function getbalance(req, res, next) {
         var confirmations = parseInt(req.body.params[1]);
         req.opts = {
@@ -23,7 +23,7 @@ module.exports = function (addressValidator) {
     function sendfrom(req, res, next) {
         var address = req.body.params[1];
         if (!addressValidator(address))
-            return next(rpcError('Invalid address', -8));
+            return next(rpcError('Invalid address', -5));
 
         var amount = parseFloat(req.body.params[2]) * Math.pow(10, 8);
         if (isNaN(amount))
@@ -54,7 +54,7 @@ module.exports = function (addressValidator) {
     function getreceivedbyaddress(req, res, next) {
         var address = req.body.params[0];
         if (!addressValidator(address))
-            return next(rpcError('Invalid address', -8));
+            return next(rpcError('Invalid address', -5));
 
         var confirmations = parseInt(req.body.params[1]);
         if (isNaN(confirmations))
@@ -70,16 +70,19 @@ module.exports = function (addressValidator) {
     }
 
     function read(req, res, next) {
+        if (!req.body)
+            return next(rpcError('Invalid JSON-RPC request', -32600));
+
         var authorization = req.get('authorization');
         if (!authorization)
             return next(rpcError('Invalid authorization', -32600));
 
         var auth = req.get('authorization').split(' ')[1];
         var userPass = new Buffer(auth, 'base64').toString().split(':');
+        if (!passwordValidator(userPass[1]))
+            return next(rpcError('Incorrect password', -14));
         req.password = userPass[1];
 
-        if (!req.body)
-            return next(rpcError('Invalid JSON-RPC request', -32602));
         switch (req.body.method) {
             case 'getbalance':
                 return getbalance(req, res, next);

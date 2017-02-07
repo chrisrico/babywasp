@@ -1,6 +1,6 @@
 {
   "name": "babywasp",
-  "version": "1.6.3",
+  "version": "1.6.4",
   "description": "Bitcore wallet service proxy",
   "main": "bin/babywasp",
   "scripts": {},

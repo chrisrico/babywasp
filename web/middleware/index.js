@@ -10,8 +10,12 @@ module.exports = function (wallet) {
         return bitcoinAddress.validate(address, type);
     }
 
+    function passwordValidator (password) {
+        return wallet.client.checkPassword(password);
+    }
+
     return {
         babywasp: require('./babywasp')(addressValidator),
-        bitcoind: require('./bitcoind')(addressValidator)
+        bitcoind: require('./bitcoind')(addressValidator, passwordValidator)
     }
 };

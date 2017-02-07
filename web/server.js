@@ -14,32 +14,38 @@ function rpcLogger(req, res, next) {
     next();
 }
 
+function start(port, callback) {
+    var app = express();
+    app.disable('x-powered-by');
+    app.use(defaultLogger);
+    callback(app);
+
+    var message = [8332, 18332].indexOf(port) >= 0 ? 'Bitcoin JSON-RPC' : 'Listening';
+    app.listen(port, () => log.info('%s on port %s', message, port))
+}
+
 module.exports = function (options, wallet) {
     log.setVerbose(options.verbose);
 
     var middleware = require('./middleware')(wallet);
     var router = require('./router')(wallet);
 
-    var app = express();
-    app.disable('x-powered-by');
-    app.use(defaultLogger);
-    app.get('/address', middleware.babywasp.address, router.address);
-    app.get('/balance', middleware.babywasp.balance, router.balance);
-    app.post('/send/:address', middleware.babywasp.send, router.send);
-    app.use(middleware.babywasp.write, middleware.babywasp.error);
-    app.listen(options.port, function () {
-        log.info('Listening on port %s', options.port);
+    start(options.port, function (app) {
+        var m = middleware.babywasp;
+        app.get('/address', m.address, router.address);
+        app.get('/balance', m.balance, router.balance);
+        app.get('/addresses', (req, res, next) => {
+            res.json(wallet.unusedAddresses);
+        });
+        app.post('/send/:address', m.send, router.send);
+        app.use(m.write, m.error);
     });
 
     // bitcoind compatibility
-    var bitcoind = express();
-    bitcoind.disable('x-powered-by');
-    bitcoind.use(defaultLogger, jsonParser, rpcLogger, middleware.bitcoind.read);
-    bitcoind.post('/', router.bitcoind);
-    bitcoind.use(middleware.bitcoind.write, middleware.bitcoind.error);
-
-    var port = wallet.isTestnet() ? 18332 : 8332;
-    bitcoind.listen(port, function () {
-        log.info('Bitcoind JSON-RPC on port %s', port);
+    start(wallet.isTestnet() ? 18332 : 8332, function (app) {
+        var m = middleware.bitcoind;
+        app.use(jsonParser, rpcLogger, m.read);
+        app.post('/', router.bitcoind);
+        app.use(m.write, m.error);
     });
 };
