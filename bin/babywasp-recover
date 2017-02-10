@@ -39,7 +39,7 @@ function onInit(options, wallet, input) {
 			},
 			wallet.encrypt.bind(wallet)
 		], function (err, password) {
-			if (err) return;
+			if (err) return console.error(err);
 
 			console.log('\n This is the wallet password for your BATM configuration.\n');
 			console.log(password + '\n');

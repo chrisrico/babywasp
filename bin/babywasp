@@ -11,6 +11,7 @@ program
 	.command('export <wallet-file> <output-file>', 'Exports a watching only copy of the wallet')
 	.command('recover <wallet-file>', 'Recover the wallet from a mnemonic')
 	.command('info <wallet-file>', 'Outputs information about the wallet')
+	.command('sync <target-server>', 'Synchronize transaction nodes from one Bitcore server to another')
 	.on('--help', function () {
 		console.log('  Notes:\n');
 		console.log('    This software uses the BitCore wallet service by Bitpay, which makes it');

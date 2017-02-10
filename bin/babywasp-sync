@@ -1,0 +1,55 @@
+#!/usr/bin/env node
+
+var async = require('async');
+var util = require('../lib/util');
+var Wallet = require('../lib/wallet');
+
+util.init(onInit)
+    .arguments('<target-host>')
+    .parse(process.argv);
+
+function onInit(targetHost, options, wallet) {
+    var targetWallet = new Wallet(wallet.file, {host: targetHost, verbose: options.verbose});
+    console.log('Loading transaction history. Please be patient, this may take a while...');
+
+    async.parallel([
+        wallet.load.bind(wallet, {}),
+        targetWallet.load.bind(targetWallet, {})
+    ], function (err) {
+        if (err) return console.error(err);
+
+        async.parallel([
+            wallet.getTxHistory.bind(wallet),
+            targetWallet.getTxHistory.bind(targetWallet)
+        ], processResults(wallet, targetWallet));
+    });
+}
+
+function getNote(tx, dtx) {
+    if (tx.note && (!dtx.note || dtx.note.editedOn < tx.note.editedOn)) return tx.note.body;
+    if (tx.message && tx.message != dtx.message && !dtx.note) return tx.message;
+}
+
+function processResults(wallet, targetWallet) {
+    return function(err, results) {
+        var source = results[0], destination = results[1];
+        if (err || source.length != destination.length) return console.error(err || 'Mismatched transaction sets');
+
+        async.eachOfSeries(source, function (tx, i, next) {
+            if (tx.action != 'sent') return next();
+
+            var dtx = destination[i];
+
+            var note = getNote(tx, dtx);
+            if (!note) return next();
+
+            console.log('%s: %s', tx.txid, note);
+            targetWallet.setNote(tx.txid, note, function (err) {
+                next(err);
+            });
+        }, function (err) {
+            if (err) return console.error(err);
+            console.log('Successfully synced transaction notes');
+        });
+    }
+}
