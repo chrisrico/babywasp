@@ -1,3 +1,7 @@
+# NO LONGER SUPPORTED
+
+Copay is losing support for hardware wallets and Bitcore has gotten far too slow to make this software useful.
+
 # babywasp
 
 babywasp is a Bitcore wallet service proxy. It connects to the BWS instance of your choice though it defaults to Bitpay's. This makes it fully compatible with Copay, so you can import the wallet into Copay, or even create a m-of-n wallet.
